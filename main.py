@@ -9,6 +9,9 @@ from fastapi import UploadFile, File
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
+# ✅ ADDED (CORS for frontend connection)
+from fastapi.middleware.cors import CORSMiddleware
+
 def semantic_similarity(text1, text2):
     aliases = {
         "ml": "machine learning",
@@ -29,6 +32,15 @@ def semantic_similarity(text1, text2):
 
 app = FastAPI()
 
+# ✅ ADDED (CORS middleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 class ResumeListRequest(BaseModel):
     job_description: str
     resumes: list[str]
@@ -36,9 +48,11 @@ class ResumeListRequest(BaseModel):
 @app.get("/")
 def home():
     return {"message": "AI Resume Screening Backend is running"}
+
 @app.get("/health")
 def health_check():
     return {"status": "OK", "service": "AI Resume Screening"}
+
 class JobDescription(BaseModel):
     text: str
 
@@ -104,7 +118,7 @@ def rank_resumes(data: ResumeListRequest):
         experience_bonus = 0
         years = re.findall(r'\d+\s+year', resume)
         if years:
-            experience_bonus = min(int(years[0].split()[0]), 5)  # cap at 5
+            experience_bonus = min(int(years[0].split()[0]), 5)
 
         clean_text = re.sub(r'\S+@\S+|\d{10}', '', resume_text)
         preview = clean_text.strip()[:120]
@@ -115,21 +129,23 @@ def rank_resumes(data: ResumeListRequest):
         list(common_skills)
         })
 
-    # SORTING (IMPORTANT)
     results = sorted(results, key=lambda x: x["score"], reverse=True)
     for i, res in enumerate(results):
         res["rank"] = i + 1
 
     return {"ranked_resumes": results}
 
-@app.get("/rank-from-files")
-def rank_from_files():
+@app.post("/rank-from-files")
+def rank_from_files(job_description: str = Form(...)):
 
     folder_path = "resumes"
 
+    # ✅ ADDED (safe check)
+    if not os.path.exists(folder_path):
+        return {"error": "Resumes folder not found"}
+
     resumes = []
 
-    # Read all files
     for filename in os.listdir(folder_path):
         file_path = os.path.join(folder_path, filename)
 
@@ -137,7 +153,6 @@ def rank_from_files():
             content = file.read()
             resumes.append(content)
 
-    # Reuse your logic (IMPORTANT)
     data = ResumeListRequest(
         job_description=job_description,
         resumes=resumes
@@ -154,7 +169,13 @@ def upload_resume(
 ):
     contents = []
     for file in files:
+
+        # ✅ ADDED (safety check)
+        if not file.filename:
+            continue
+
         file.file.seek(0)
+
         if file.filename.endswith(".txt"):
             content = file.file.read().decode("utf-8", errors="ignore")
 
@@ -165,9 +186,12 @@ def upload_resume(
                     text = page.extract_text()
                     if text:
                         content += text
+        else:
+            continue
 
         if content.strip():
             contents.append(content)
+
     print("FILES RECEIVED:", len(files))
     print("CONTENTS CREATED:", len(contents))
 
@@ -192,4 +216,3 @@ def upload_resume(
     print("Final resumes sent to ranking:", len(unique_contents))
 
     return result
-
