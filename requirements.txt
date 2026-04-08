@@ -20,5 +20,5 @@ python-multipart==0.0.20
 beautifulsoup4==4.14.2
 lxml==6.0.2
 pdfplumber==0.11.7
-
+importlib-resources==6.4.5
 scikit-learn==1.7.2
