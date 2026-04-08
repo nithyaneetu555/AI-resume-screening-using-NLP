@@ -41,14 +41,27 @@ if analyze:
                 ("files", (file.name, file.getvalue(), file.type))
             )
 
+        st.info("Server waking up, first request may take 30–60 seconds")
         with st.spinner("Analyzing resumes... ⏳"):
-            response = requests.post(
-                "http://127.0.0.1:8000/upload-resume",
-                files=files,
-                data={"job_description": jd}
-            )
+            try:
+                response = requests.post(
+                    "https://ai-resume-screening-using-nlp-1.onrender.com/upload-resume",
+                    files=files,
+                    data={"job_description": jd},
+                    timeout=120
+                )
+                print("response.status_code:", response.status_code)
+                response_data = response.json()
+                print("response.json():", response_data)
+                response.raise_for_status()
+            except requests.exceptions.RequestException as e:
+                st.error(f"API request failed: {e}")
+                st.stop()
+            except ValueError as e:
+                st.error(f"Invalid JSON response from API: {e}")
+                st.stop()
 
-        result = response.json()
+        result = response_data
 
         st.success("Analysis Complete ✅")
 
